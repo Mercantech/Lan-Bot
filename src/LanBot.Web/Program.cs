@@ -43,6 +43,7 @@ var publicBaseUrlRaw =
     Environment.GetEnvironmentVariable("PUBLIC_BASE_URL")
     ?? builder.Configuration["PUBLIC_BASE_URL"];
 string? publicBaseUrl = null;
+Uri? publicBaseUri = null;
 if (!string.IsNullOrWhiteSpace(publicBaseUrlRaw))
 {
     publicBaseUrl = publicBaseUrlRaw.Trim().TrimEnd('/');
@@ -51,11 +52,17 @@ if (!string.IsNullOrWhiteSpace(publicBaseUrlRaw))
     {
         publicBaseUrl = $"https://{publicBaseUrl}";
     }
+
+    if (Uri.TryCreate(publicBaseUrl, UriKind.Absolute, out var parsed))
+    {
+        publicBaseUri = parsed;
+    }
 }
 var discordCallbackOverride = publicBaseUrl is null ? null : $"{publicBaseUrl}/signin-discord";
 var discordAdminIds = (discordAdminIdsRaw ?? "")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
     .ToHashSet(StringComparer.Ordinal);
+var discordAuthEnabled = !string.IsNullOrWhiteSpace(discordClientId) && !string.IsNullOrWhiteSpace(discordClientSecret);
 
 builder.Services.AddSingleton(new DiscordAdminOptions(discordAdminIds));
 
@@ -63,7 +70,9 @@ var authBuilder = builder.Services
     .AddAuthentication(options =>
     {
         options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = "Discord";
+        options.DefaultChallengeScheme = discordAuthEnabled
+            ? "Discord"
+            : CookieAuthenticationDefaults.AuthenticationScheme;
     })
     .AddCookie(options =>
     {
@@ -71,7 +80,6 @@ var authBuilder = builder.Services
         options.LogoutPath = "/logout";
     });
 
-var discordAuthEnabled = !string.IsNullOrWhiteSpace(discordClientId) && !string.IsNullOrWhiteSpace(discordClientSecret);
 if (discordAuthEnabled)
 {
     authBuilder.AddOAuth("Discord", options =>
@@ -159,7 +167,24 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
+    // Behind reverse proxies in container setups, trust forwarded headers explicitly.
+    KnownIPNetworks = { },
+    KnownProxies = { }
+});
+app.Use((context, next) =>
+{
+    if (publicBaseUri is not null
+        && (context.Request.Path.StartsWithSegments("/login")
+            || context.Request.Path.StartsWithSegments("/signin-discord")))
+    {
+        context.Request.Scheme = publicBaseUri.Scheme;
+        context.Request.Host = publicBaseUri.IsDefaultPort
+            ? new HostString(publicBaseUri.Host)
+            : new HostString(publicBaseUri.Host, publicBaseUri.Port);
+    }
+
+    return next();
 });
 
 app.UseAuthentication();

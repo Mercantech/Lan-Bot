@@ -70,9 +70,9 @@ var authBuilder = builder.Services
     .AddAuthentication(options =>
     {
         options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = discordAuthEnabled
-            ? "Discord"
-            : CookieAuthenticationDefaults.AuthenticationScheme;
+        // Brug altid cookie-challenge. Det sender uautoriserede brugere til `/login`,
+        // som igen laver Discord OAuth-challenge, så correlation/“state”-cookies matcher callback-URL'en.
+        options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
     })
     .AddCookie(options =>
     {
@@ -87,6 +87,7 @@ if (discordAuthEnabled)
         options.ClientId = discordClientId!;
         options.ClientSecret = discordClientSecret!;
         options.CallbackPath = "/signin-discord";
+        options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 
         options.AuthorizationEndpoint = "https://discord.com/oauth2/authorize";
         options.TokenEndpoint = "https://discord.com/api/oauth2/token";

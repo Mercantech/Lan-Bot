@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Security.Claims;
@@ -37,6 +39,20 @@ var discordClientSecret =
 var discordAdminIdsRaw =
     Environment.GetEnvironmentVariable("DISCORD_ADMIN_IDS")
     ?? builder.Configuration["DISCORD_ADMIN_IDS"];
+var publicBaseUrlRaw =
+    Environment.GetEnvironmentVariable("PUBLIC_BASE_URL")
+    ?? builder.Configuration["PUBLIC_BASE_URL"];
+string? publicBaseUrl = null;
+if (!string.IsNullOrWhiteSpace(publicBaseUrlRaw))
+{
+    publicBaseUrl = publicBaseUrlRaw.Trim().TrimEnd('/');
+    if (!publicBaseUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+        && !publicBaseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+    {
+        publicBaseUrl = $"https://{publicBaseUrl}";
+    }
+}
+var discordCallbackOverride = publicBaseUrl is null ? null : $"{publicBaseUrl}/signin-discord";
 var discordAdminIds = (discordAdminIdsRaw ?? "")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
     .ToHashSet(StringComparer.Ordinal);
@@ -77,6 +93,22 @@ if (discordAuthEnabled)
 
         options.Events = new OAuthEvents
         {
+            OnRedirectToAuthorizationEndpoint = context =>
+            {
+                if (!string.IsNullOrWhiteSpace(discordCallbackOverride))
+                {
+                    var uri = new Uri(context.RedirectUri);
+                    var query = QueryHelpers.ParseQuery(uri.Query);
+                    var dict = query.ToDictionary(k => k.Key, v => v.Value.ToString());
+                    dict["redirect_uri"] = discordCallbackOverride;
+                    var updated = QueryHelpers.AddQueryString($"{uri.Scheme}://{uri.Host}{uri.AbsolutePath}", dict!);
+                    context.Response.Redirect(updated);
+                    return Task.CompletedTask;
+                }
+
+                context.Response.Redirect(context.RedirectUri);
+                return Task.CompletedTask;
+            },
             OnCreatingTicket = async context =>
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, context.Options.UserInformationEndpoint);
@@ -125,6 +157,10 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost
+});
 
 app.UseAuthentication();
 app.UseAuthorization();

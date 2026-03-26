@@ -125,13 +125,20 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         if (Context.Interaction is not SocketMessageComponent component)
             return;
 
-        _createFlow.Remove(component.Message.Id);
-        await component.UpdateAsync(m =>
+        try
         {
-            m.Content = "Turnering-oprettelse annulleret.";
-            m.Embeds = Array.Empty<Embed>();
-            m.Components = new ComponentBuilder().Build();
-        });
+            _createFlow.Remove(component.Message.Id);
+            await component.UpdateAsync(m =>
+            {
+                m.Content = "Turnering-oprettelse annulleret.";
+                m.Embeds = Array.Empty<Embed>();
+                m.Components = new ComponentBuilder().Build();
+            });
+        }
+        catch
+        {
+            try { await component.RespondAsync("Kunne ikke annullere. Prøv igen.", ephemeral: true); } catch { }
+        }
     }
 
     [ComponentInteraction("tcf_confirm")]
@@ -154,27 +161,45 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         if (d.Progression == TournamentProgression.SingleMatch)
             d.AdvanceCount = 1;
 
-        var (ok, message, tournament) = await _tournaments.CreateAsync(
-            d.Name,
-            progression: d.Progression,
-            isTeamBased: d.IsTeamBased,
-            randomizeSeeds: d.RandomizeSeeds,
-            playersPerMatch: d.PlayersPerMatch,
-            advanceCount: d.AdvanceCount);
-
-        if (ok && tournament is not null)
+        string? message;
+        try
         {
-            await _announcements.TryAnnounceTournamentAsync(tournament, Context.User, Context.Channel.Id);
-            await _audit.TryLogAsync($"[tournament.create] {Context.User} oprettede **{d.Name}** (prog: {d.Progression}, team: {d.IsTeamBased}, random: {d.RandomizeSeeds}, ppm: {d.PlayersPerMatch}, adv: {d.AdvanceCount})");
+            var (ok, createdMessage, tournament) = await _tournaments.CreateAsync(
+                d.Name,
+                progression: d.Progression,
+                isTeamBased: d.IsTeamBased,
+                randomizeSeeds: d.RandomizeSeeds,
+                playersPerMatch: d.PlayersPerMatch,
+                advanceCount: d.AdvanceCount);
+
+            message = createdMessage;
+
+            if (ok && tournament is not null)
+            {
+                await _announcements.TryAnnounceTournamentAsync(tournament, Context.User, Context.Channel.Id);
+                await _audit.TryLogAsync($"[tournament.create] {Context.User} oprettede **{d.Name}** (prog: {d.Progression}, team: {d.IsTeamBased}, random: {d.RandomizeSeeds}, ppm: {d.PlayersPerMatch}, adv: {d.AdvanceCount})");
+            }
+        }
+        catch
+        {
+            try { await component.RespondAsync("Kunne ikke oprette turneringen. Prøv igen.", ephemeral: true); } catch { }
+            return;
         }
 
-        _createFlow.Remove(component.Message.Id);
-        await component.UpdateAsync(m =>
+        try
         {
-            m.Content = message;
-            m.Embeds = Array.Empty<Embed>();
-            m.Components = new ComponentBuilder().Build();
-        });
+            _createFlow.Remove(component.Message.Id);
+            await component.UpdateAsync(m =>
+            {
+                m.Content = message ?? "";
+                m.Embeds = Array.Empty<Embed>();
+                m.Components = new ComponentBuilder().Build();
+            });
+        }
+        catch
+        {
+            try { await component.RespondAsync("Kunne ikke opdatere wizard. Prøv igen.", ephemeral: true); } catch { }
+        }
     }
 
     private async Task UpdateDraftAsync(Action<TournamentCreateFlowState.Draft> mutate)
@@ -203,7 +228,9 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         }
         catch
         {
-            await component.RespondAsync("Kunne ikke opdatere wizard. Prøv igen.", ephemeral: true);
+            // Wrap'er respond i try/catch for at undgå, at en sekundær fejl efter en allerede mislykket UpdateAsync
+            // efterlader interaktionen uden svar.
+            try { await component.RespondAsync("Kunne ikke opdatere wizard. Prøv igen.", ephemeral: true); } catch { }
         }
     }
 

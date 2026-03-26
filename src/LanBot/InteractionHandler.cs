@@ -60,7 +60,11 @@ public sealed class InteractionHandler
             _logger.LogError(ex, "Failed to handle interaction");
             try
             {
-                if (interaction.Type is InteractionType.ApplicationCommand)
+                // Discord viser "This interaction failed" hvis der ikke bliver sendt en response tilbage.
+                // Derfor forsøger vi at svare uanset om det er slash-command eller komponent (buttons/selects).
+                if (interaction is SocketMessageComponent component)
+                    await component.RespondAsync("Der skete en fejl. Prøv igen.", ephemeral: true);
+                else
                     await interaction.RespondAsync("Der skete en fejl. Prøv igen.", ephemeral: true);
             }
             catch

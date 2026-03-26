@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LanBot.Data/LanBot.Data.csproj" />
+    <Project Path="src/LanBot.Domain.Tests/LanBot.Domain.Tests.csproj" />
+    <Project Path="src/LanBot.Domain/LanBot.Domain.csproj" />
+    <Project Path="src/LanBot.Web/LanBot.Web.csproj" />
+    <Project Path="src/LanBot/LanBot.csproj" />
+  </Folder>
+</Solution>

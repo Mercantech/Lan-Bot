@@ -1,0 +1,44 @@
+@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row">
+            <div class="top-row-left">
+                <img src="/LanIcon.png" alt="LAN icon" class="top-logo" />
+                <div class="top-meta">
+                    <div class="top-title">LAN Control Center</div>
+                    <div class="top-subtitle">Turneringer, brackets og scoreboard</div>
+                </div>
+            </div>
+            <AuthorizeView>
+                <Authorized>
+                    <a class="top-link" href="/logout">
+                        <span class="discord-icon" aria-hidden="true">🎮</span>
+                        <span>Log ud</span>
+                    </a>
+                </Authorized>
+                <NotAuthorized>
+                    <a class="top-link" href="/login">
+                        <span class="discord-icon" aria-hidden="true">🎮</span>
+                        <span>Log ind med Discord</span>
+                    </a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+
+        <article class="content">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>

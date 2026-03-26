@@ -1,0 +1,51 @@
+# Build output
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+artifacts/
+
+# .NET / Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# Visual Studio Code
+.vscode/
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Logs
+*.log
+
+# Test results / coverage
+TestResults/
+*.trx
+coverage/
+coverage.*/
+
+# NuGet / tooling
+packages/
+*.nupkg
+*.snupkg
+.nuget/
+
+# Secrets / environment
+.env
+.env.*
+!.env.example
+
+# Docker
+docker-compose.override.yml
+

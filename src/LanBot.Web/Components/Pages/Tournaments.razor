@@ -1,0 +1,61 @@
+@page "/tournaments"
+@inject LanBot.Web.Services.TournamentReadService ReadService
+
+<PageTitle>Tournaments</PageTitle>
+
+<section class="theme-banner">
+    <img src="/LanBanner.png" alt="Netparty banner" />
+    <div class="theme-banner-overlay">
+        <p>Netparty Theme</p>
+        <h2>Turneringer</h2>
+    </div>
+</section>
+
+<div class="page-head">
+    <h1>Tournaments</h1>
+    @if (_items is { Count: > 0 })
+    {
+        <span class="pill">@_items.Count aktive/oprettede</span>
+    }
+</div>
+
+@if (_items is null)
+{
+    <p class="muted">Henter data...</p>
+}
+else if (_items.Count == 0)
+{
+    <p class="muted">Ingen turneringer fundet.</p>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var t in _items)
+        {
+            <div class="col-12 col-lg-6">
+                <div class="card tournament-card">
+                    <div class="card-body">
+                        <div class="card-top">
+                            <h5 class="card-title">@t.Name</h5>
+                            <span class="status status-@t.Status.ToString().ToLowerInvariant()">@t.Status</span>
+                        </div>
+                        <p class="card-text mb-2 muted">@t.Progression • @(t.IsTeamBased ? "Team" : "Solo")</p>
+                        <p class="card-text mb-1"><strong>Format:</strong> @t.PlayersPerMatch pr. match, top @t.AdvanceCount videre</p>
+                        <p class="card-text mb-3"><strong>Tilmeldte:</strong> @t.EntryCount</p>
+                        <a class="btn btn-primary" href="@($"/tournaments/{t.Id}")">Åbn bracket</a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<LanBot.Web.Services.TournamentListItem>? _items;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _items = await ReadService.GetTournamentsAsync();
+    }
+}
+

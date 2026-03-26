@@ -1,0 +1,65 @@
+@page "/scoreboard"
+@inject LanBot.Web.Services.TournamentReadService ReadService
+
+<PageTitle>Scoreboard</PageTitle>
+
+<section class="score-hero">
+    <img src="/LanBanner.png" alt="Scoreboard banner" />
+    <div class="score-hero-overlay">
+        <h2>Hall of Fame</h2>
+        <p>Champions fra tidligere turneringer</p>
+    </div>
+</section>
+
+<div class="page-head">
+    <h1>Scoreboard</h1>
+    @if (_items is { Count: > 0 })
+    {
+        <span class="pill">@_items.Count afsluttede</span>
+    }
+</div>
+
+@if (_items is null)
+{
+    <p class="muted">Henter scoreboard...</p>
+}
+else if (_items.Count == 0)
+{
+    <p class="muted">Ingen afsluttede turneringer endnu.</p>
+}
+else
+{
+    <div class="board-card">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Tournament</th>
+                    <th>Vinder</th>
+                    <th>Progression</th>
+                    <th>Afsluttet</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var i in _items)
+                {
+                    <tr>
+                        <td><a href="@($"/tournaments/{i.TournamentId}")">@i.TournamentName</a></td>
+                        <td><strong>@i.WinnerName</strong></td>
+                        <td><span class="pill">@i.Progression</span></td>
+                        <td class="muted">@i.CompletedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<LanBot.Web.Services.ScoreboardItem>? _items;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _items = await ReadService.GetScoreboardAsync();
+    }
+}
+

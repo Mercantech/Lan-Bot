@@ -1,0 +1,146 @@
+@page "/tournaments/{TournamentId:guid}"
+@inject LanBot.Web.Services.TournamentReadService ReadService
+
+<PageTitle>Tournament Details</PageTitle>
+
+@if (_data is null)
+{
+    <p class="muted">Henter turnering...</p>
+}
+else
+{
+    <div class="header-card">
+        <div>
+            <h1>@_data.Name</h1>
+            <p class="muted">Status: <span class="pill">@_data.Status</span> • @_data.Progression • @(_data.IsTeamBased ? "Team" : "Solo")</p>
+            <p class="muted">Format: @_data.PlayersPerMatch pr. match, top @_data.AdvanceCount videre</p>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_data.WinnerName))
+        {
+            <div class="winner-box">
+                <div class="winner-label">Champion</div>
+                <div class="winner-name">@_data.WinnerName</div>
+            </div>
+        }
+    </div>
+
+    <div class="detail-grid">
+        <section class="panel participants">
+            <div class="panel-head">
+                <h3>Deltagere</h3>
+                <span class="pill">@_data.Participants.Count</span>
+            </div>
+            @if (_data.Participants.Count == 0)
+            {
+                <p class="muted">Ingen deltagere endnu.</p>
+            }
+            else
+            {
+                <div class="participant-list">
+                    @foreach (var p in _data.Participants)
+                    {
+                        <div class="participant-row">
+                            <span>@p.RealName</span>
+                            <span class="muted">@($"@{p.DiscordUserId}")</span>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="panel bracket">
+            <div class="panel-head">
+                <h3>Bracket Diagram</h3>
+                <span class="muted">Klik på en match for detaljer</span>
+            </div>
+            @if (_data.Rounds.Count == 0)
+            {
+                <p class="muted">Ingen rounds endnu.</p>
+            }
+            else
+            {
+                <div class="bracket-wrap">
+                    @for (var i = 0; i < _data.Rounds.Count; i++)
+                    {
+                        var round = _data.Rounds[i];
+                        <div class="round-col">
+                            <div class="round-title">Round @round.Number</div>
+                            @foreach (var match in round.Matches)
+                            {
+                                var isSelected = IsSelected(round.Number, match.Seed);
+                                <button class="match-card @(isSelected ? "selected" : null)"
+                                        @onclick="() => SelectMatch(round.Number, match.Seed)">
+                                    <div class="match-head">
+                                        <span>Match @match.Seed</span>
+                                        <span class="pill">@match.Status</span>
+                                    </div>
+                                    <ul class="match-list">
+                                        @foreach (var pl in match.Players)
+                                        {
+                                            <li class="@(pl.Placement == 1 ? "winner" : null)">
+                                                <span>@pl.Name</span>
+                                                @if (pl.Placement.HasValue)
+                                                {
+                                                    <small>#@pl.Placement</small>
+                                                }
+                                            </li>
+                                        }
+                                    </ul>
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+
+                @if (SelectedMatch is not null)
+                {
+                    <div class="match-details">
+                        <h4>Round @SelectedRoundNumber • Match @SelectedMatch.Seed</h4>
+                        <p class="muted">Status: @SelectedMatch.Status</p>
+                        <div class="detail-players">
+                            @foreach (var player in SelectedMatch.Players.OrderBy(p => p.Placement ?? int.MaxValue))
+                            {
+                                <div class="detail-player">
+                                    <span>@player.Name</span>
+                                    <span class="pill">@(player.Placement.HasValue ? $"Placering #{player.Placement}" : "Afventer")</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid TournamentId { get; set; }
+
+    private LanBot.Web.Services.TournamentDetailsDto? _data;
+    private int? SelectedRoundNumber { get; set; }
+    private int? SelectedMatchSeed { get; set; }
+    private LanBot.Web.Services.MatchDto? SelectedMatch =>
+        _data?.Rounds.FirstOrDefault(r => r.Number == SelectedRoundNumber)?.Matches.FirstOrDefault(m => m.Seed == SelectedMatchSeed);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _data = await ReadService.GetTournamentDetailsAsync(TournamentId);
+        if (_data?.Rounds.Count > 0)
+        {
+            SelectedRoundNumber = _data.Rounds[0].Number;
+            SelectedMatchSeed = _data.Rounds[0].Matches.FirstOrDefault()?.Seed;
+        }
+    }
+
+    private bool IsSelected(int roundNumber, int matchSeed)
+    {
+        return SelectedRoundNumber == roundNumber && SelectedMatchSeed == matchSeed;
+    }
+
+    private void SelectMatch(int roundNumber, int matchSeed)
+    {
+        SelectedRoundNumber = roundNumber;
+        SelectedMatchSeed = matchSeed;
+    }
+}
+

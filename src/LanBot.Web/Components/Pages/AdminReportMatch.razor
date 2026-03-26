@@ -1,0 +1,152 @@
+@page "/admin/matches/report"
+@attribute [Authorize(Policy = "AdminOnly")]
+@using LanBot.Web.Services
+@using Microsoft.AspNetCore.Components.Forms
+@inject LanBot.Web.Services.MatchAdminService MatchAdminService
+
+<PageTitle>Match report</PageTitle>
+
+<h1>Afgor match</h1>
+<p class="muted">Drag and drop spillerlisten i den rigtige placering og tryk confirm.</p>
+
+<div class="controls">
+    <div>
+        <label class="form-label">Turnering</label>
+        <select class="form-select" @onchange="OnTournamentChanged">
+            <option value="">Vaelg turnering</option>
+            @foreach (var t in _tournaments)
+            {
+                <option value="@t.Id" selected="@(t.Id == _selectedTournamentId)">@t.Name (@t.Status)</option>
+            }
+        </select>
+    </div>
+    <div>
+        <label class="form-label">Match</label>
+        <select class="form-select" @onchange="OnMatchChanged" disabled="@(_matches.Count == 0)">
+            <option value="">Vaelg match</option>
+            @foreach (var m in _matches)
+            {
+                <option value="@m.Id" selected="@(m.Id == _selectedMatchId)">Round @m.RoundNumber - Match @m.Seed (@m.Status)</option>
+            }
+        </select>
+    </div>
+</div>
+
+@if (_ranking.Count > 0)
+{
+    <div class="ranking-card">
+        <div class="ranking-head">
+            <h4>Placering (top -> bund)</h4>
+            <button class="btn btn-primary" @onclick="ConfirmAsync" disabled="@_saving">
+                @(_saving ? "Gemmer..." : "Confirm")
+            </button>
+        </div>
+
+        <ul class="ranking-list">
+            @foreach (var player in _ranking)
+            {
+                <li class="ranking-item"
+                    draggable="true"
+                    @ondragstart="() => StartDrag(player.ParticipantId)"
+                    @ondragover:preventDefault="true"
+                    @ondrop="() => DropOn(player.ParticipantId)">
+                    <span class="place">#@(_ranking.IndexOf(player) + 1)</span>
+                    <div class="player-meta">
+                        <strong>@player.RealName</strong>
+                        <small>@($"@{player.DiscordUserId}")</small>
+                    </div>
+                    <span class="drag-hint">drag</span>
+                </li>
+            }
+        </ul>
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_ok ? "alert-success" : "alert-danger") mt-3">@_message</div>
+}
+
+@code {
+    private List<AdminTournamentItem> _tournaments = new();
+    private List<AdminMatchItem> _matches = new();
+    private List<AdminMatchPlayerItem> _ranking = new();
+
+    private Guid? _selectedTournamentId;
+    private Guid? _selectedMatchId;
+    private Guid? _draggedPlayerId;
+    private bool _saving;
+    private bool _ok;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _tournaments = await MatchAdminService.GetTournamentsAsync();
+    }
+
+    private async Task OnTournamentChanged(ChangeEventArgs args)
+    {
+        _message = null;
+        _selectedMatchId = null;
+        _ranking.Clear();
+        _matches.Clear();
+
+        if (!Guid.TryParse(args.Value?.ToString(), out var tournamentId))
+            return;
+
+        _selectedTournamentId = tournamentId;
+        _matches = await MatchAdminService.GetReportableMatchesAsync(tournamentId);
+    }
+
+    private async Task OnMatchChanged(ChangeEventArgs args)
+    {
+        _message = null;
+        _ranking.Clear();
+
+        if (!Guid.TryParse(args.Value?.ToString(), out var matchId))
+            return;
+
+        _selectedMatchId = matchId;
+        _ranking = await MatchAdminService.GetMatchPlayersAsync(matchId);
+    }
+
+    private void StartDrag(Guid participantId)
+    {
+        _draggedPlayerId = participantId;
+    }
+
+    private void DropOn(Guid targetParticipantId)
+    {
+        if (!_draggedPlayerId.HasValue || _draggedPlayerId.Value == targetParticipantId)
+            return;
+
+        var fromIndex = _ranking.FindIndex(x => x.ParticipantId == _draggedPlayerId.Value);
+        var toIndex = _ranking.FindIndex(x => x.ParticipantId == targetParticipantId);
+        if (fromIndex < 0 || toIndex < 0)
+            return;
+
+        var item = _ranking[fromIndex];
+        _ranking.RemoveAt(fromIndex);
+        _ranking.Insert(toIndex, item);
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (!_selectedMatchId.HasValue || _ranking.Count == 0)
+            return;
+
+        _saving = true;
+        _message = null;
+
+        var ordered = _ranking.Select(x => x.ParticipantId).ToList();
+        var (ok, message) = await MatchAdminService.ReportSoloMatchAsync(_selectedMatchId.Value, ordered);
+        _ok = ok;
+        _message = message;
+        _saving = false;
+
+        if (ok && _selectedTournamentId.HasValue)
+        {
+            _matches = await MatchAdminService.GetReportableMatchesAsync(_selectedTournamentId.Value);
+        }
+    }
+}

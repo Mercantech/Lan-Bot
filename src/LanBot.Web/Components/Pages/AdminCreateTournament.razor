@@ -1,0 +1,101 @@
+@page "/admin/tournaments/new"
+@attribute [Authorize(Policy = "AdminOnly")]
+@using System.ComponentModel.DataAnnotations
+@using LanBot.Domain.Entities
+@using Microsoft.AspNetCore.Components.Forms
+@inject LanBot.Web.Services.TournamentAdminService AdminService
+
+<PageTitle>Ny turnering</PageTitle>
+
+<h1>Opret ny turnering</h1>
+<p class="muted">Admin-side til at oprette turneringer direkte fra web.</p>
+
+<EditForm Model="_model" OnValidSubmit="CreateAsync" class="admin-form">
+    <DataAnnotationsValidator />
+
+    <div class="mb-3">
+        <label class="form-label">Navn</label>
+        <InputText class="form-control" @bind-Value="_model.Name" />
+        <ValidationMessage For="@(() => _model.Name)" />
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-md-4">
+            <label class="form-label">Progression</label>
+            <InputSelect class="form-select" @bind-Value="_model.Progression">
+                <option value="@TournamentProgression.Bracket">Bracket</option>
+                <option value="@TournamentProgression.SingleMatch">SingleMatch</option>
+            </InputSelect>
+        </div>
+        <div class="col-6 col-md-4">
+            <label class="form-label">Spillere pr. match</label>
+            <InputNumber class="form-control" @bind-Value="_model.PlayersPerMatch" />
+        </div>
+        <div class="col-6 col-md-4">
+            <label class="form-label">Gaar videre</label>
+            <InputNumber class="form-control" @bind-Value="_model.AdvanceCount" />
+        </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+        <div class="col-12 col-md-6">
+            <div class="form-check">
+                <InputCheckbox class="form-check-input" @bind-Value="_model.IsTeamBased" />
+                <label class="form-check-label">Team-baseret</label>
+            </div>
+        </div>
+        <div class="col-12 col-md-6">
+            <div class="form-check">
+                <InputCheckbox class="form-check-input" @bind-Value="_model.RandomizeSeeds" />
+                <label class="form-check-label">Random seeding</label>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn btn-primary mt-3" type="submit" disabled="@_saving">
+        @(_saving ? "Gemmer..." : "Opret turnering")
+    </button>
+</EditForm>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_ok ? "alert-success" : "alert-danger") mt-3">@_message</div>
+}
+
+@code {
+    private readonly CreateTournamentModel _model = new();
+    private bool _saving;
+    private bool _ok;
+    private string? _message;
+
+    private async Task CreateAsync()
+    {
+        _saving = true;
+        _message = null;
+
+        var (ok, message, _) = await AdminService.CreateAsync(
+            _model.Name,
+            _model.Progression,
+            _model.IsTeamBased,
+            _model.RandomizeSeeds,
+            _model.PlayersPerMatch,
+            _model.AdvanceCount);
+
+        _ok = ok;
+        _message = message;
+        _saving = false;
+    }
+
+    private sealed class CreateTournamentModel
+    {
+        [Required]
+        [StringLength(200)]
+        public string Name { get; set; } = "";
+
+        public TournamentProgression Progression { get; set; } = TournamentProgression.Bracket;
+        public bool IsTeamBased { get; set; }
+        public bool RandomizeSeeds { get; set; } = true;
+        public int PlayersPerMatch { get; set; } = 4;
+        public int AdvanceCount { get; set; } = 2;
+    }
+}

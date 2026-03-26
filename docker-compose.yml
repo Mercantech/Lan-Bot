@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-lanbot}
+      POSTGRES_USER: ${POSTGRES_USER:-lanbot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lanbot}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      GUILD_ID: ${GUILD_ID:-}
+      ADMIN_ROLE_ID: ${ADMIN_ROLE_ID:-}
+      ADMIN_LOG_CHANNEL_ID: ${ADMIN_LOG_CHANNEL_ID:-}
+      TOURNAMENT_ANNOUNCEMENTS_CHANNEL_ID: ${TOURNAMENT_ANNOUNCEMENTS_CHANNEL_ID:-}
+      LAN_EVENT_NAME: ${LAN_EVENT_NAME:-Default LAN}
+      POSTGRES_CONNECTION_STRING: Host=postgres;Port=5432;Database=${POSTGRES_DB:-lanbot};Username=${POSTGRES_USER:-lanbot};Password=${POSTGRES_PASSWORD:-lanbot}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    environment:
+      POSTGRES_CONNECTION_STRING: Host=postgres;Port=5432;Database=${POSTGRES_DB:-lanbot};Username=${POSTGRES_USER:-lanbot};Password=${POSTGRES_PASSWORD:-lanbot}
+      LAN_EVENT_NAME: ${LAN_EVENT_NAME:-Default LAN}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      DISCORD_ADMIN_IDS: ${DISCORD_ADMIN_IDS:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "10101:8080"
+    volumes:
+      - web_keys:/root/.aspnet/DataProtection-Keys
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  web_keys:
+

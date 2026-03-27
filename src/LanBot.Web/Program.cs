@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Security.Claims;
@@ -58,7 +57,6 @@ if (!string.IsNullOrWhiteSpace(publicBaseUrlRaw))
         publicBaseUri = parsed;
     }
 }
-var discordCallbackOverride = publicBaseUrl is null ? null : $"{publicBaseUrl}/signin-discord";
 var discordAdminIds = (discordAdminIdsRaw ?? "")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
     .ToHashSet(StringComparer.Ordinal);
@@ -90,8 +88,8 @@ if (discordAuthEnabled)
         options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 
         // Under OAuth skal correlation-cookie kunne sendes tilbage fra Discord (cross-site redirect).
-        // Uden dette kan callback fejle med "oauth state was missing or invalid".
-        options.CorrelationCookie.Path = "/";
+        // Vi beholder default path (callback-stien) for at undgå unødigt store Cookie-headers på andre routes.
+        options.CorrelationCookie.Path = "/signin-discord";
         options.CorrelationCookie.SameSite = SameSiteMode.None;
         options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
 
@@ -108,22 +106,6 @@ if (discordAuthEnabled)
 
         options.Events = new OAuthEvents
         {
-            OnRedirectToAuthorizationEndpoint = context =>
-            {
-                if (!string.IsNullOrWhiteSpace(discordCallbackOverride))
-                {
-                    var uri = new Uri(context.RedirectUri);
-                    var query = QueryHelpers.ParseQuery(uri.Query);
-                    var dict = query.ToDictionary(k => k.Key, v => v.Value.ToString());
-                    dict["redirect_uri"] = discordCallbackOverride;
-                    var updated = QueryHelpers.AddQueryString($"{uri.Scheme}://{uri.Host}{uri.AbsolutePath}", dict!);
-                    context.Response.Redirect(updated);
-                    return Task.CompletedTask;
-                }
-
-                context.Response.Redirect(context.RedirectUri);
-                return Task.CompletedTask;
-            },
             OnCreatingTicket = async context =>
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, context.Options.UserInformationEndpoint);

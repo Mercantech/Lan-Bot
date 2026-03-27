@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Reflection;
+using System.Threading;
 
 namespace LanBot;
 
@@ -15,6 +16,7 @@ public sealed class InteractionHandler
     private readonly IServiceProvider _services;
     private readonly ILogger<InteractionHandler> _logger;
     private readonly BotOptions _options;
+    private int _initialized;
 
     public InteractionHandler(
         DiscordSocketClient client,
@@ -32,6 +34,13 @@ public sealed class InteractionHandler
 
     public async Task InitializeAsync()
     {
+        // Discord "Ready" kan trigges flere gange (fx reconnect). Vi må kun registrere handlers/modules én gang.
+        if (Interlocked.Exchange(ref _initialized, 1) == 1)
+        {
+            _logger.LogDebug("Interaction handler already initialized; skipping re-registration.");
+            return;
+        }
+
         _client.InteractionCreated += HandleInteractionAsync;
 
         await _interactions.AddModulesAsync(Assembly.GetExecutingAssembly(), _services);

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Reflection;
 using System.Threading;
+using Discord.Net;
 
 namespace LanBot;
 
@@ -62,28 +63,34 @@ public sealed class InteractionHandler
         try
         {
             var ctx = new SocketInteractionContext(_client, interaction);
-            await _interactions.ExecuteCommandAsync(ctx, _services);
+            var result = await _interactions.ExecuteCommandAsync(ctx, _services);
 
-            // Hvis der ikke blev sendt et svar (fx handler/route ikke er registreret endnu),
-            // så skal vi stadig ack'e for at undgå "This interaction failed" i Discord.
-            if (!interaction.HasResponded)
+            if (!result.IsSuccess)
             {
-                if (interaction is SocketMessageComponent component)
-                    await component.RespondAsync("Der skete en fejl. Prøv igen.", ephemeral: true);
-                else
-                    await interaction.RespondAsync("Der skete en fejl. Prøv igen.", ephemeral: true);
+                _logger.LogWarning("Interaction execution failed: {Error} - {Reason}", result.Error, result.ErrorReason);
+            }
+
+            // Autocomplete kan ikke besvares med almindelig RespondAsync. Derfor svarer vi kun
+            // fallback på interaktionstyper, der understøtter standard response.
+            if (!interaction.HasResponded && SupportsStandardResponse(interaction))
+            {
+                await interaction.RespondAsync("Der skete en fejl. Prøv igen.", ephemeral: true);
             }
         }
         catch (Exception ex)
         {
+            // Hvis samme interaction allerede er ack'et (fx dobbelt håndtering ved drift),
+            // så undgår vi støj og ekstra fejl-svar.
+            if (IsAlreadyAcknowledgedOrExpired(ex))
+            {
+                _logger.LogWarning(ex, "Interaction already acknowledged or expired; skipping duplicate response.");
+                return;
+            }
+
             _logger.LogError(ex, "Failed to handle interaction");
             try
             {
-                // Discord viser "This interaction failed" hvis der ikke bliver sendt en response tilbage.
-                // Derfor forsøger vi at svare uanset om det er slash-command eller komponent (buttons/selects).
-                if (interaction is SocketMessageComponent component)
-                    await component.RespondAsync("Der skete en fejl. Prøv igen.", ephemeral: true);
-                else
+                if (!interaction.HasResponded && SupportsStandardResponse(interaction))
                     await interaction.RespondAsync("Der skete en fejl. Prøv igen.", ephemeral: true);
             }
             catch
@@ -91,6 +98,28 @@ public sealed class InteractionHandler
                 // ignore follow-up errors
             }
         }
+    }
+
+    private static bool SupportsStandardResponse(SocketInteraction interaction) =>
+        interaction is SocketSlashCommand
+        || interaction is SocketMessageComponent
+        || interaction is SocketModal;
+
+    private static bool IsAlreadyAcknowledgedOrExpired(Exception ex)
+    {
+        if (ex is HttpException httpEx)
+        {
+            return httpEx.DiscordCode.HasValue
+                && (int)httpEx.DiscordCode.Value is 40060 or 10062;
+        }
+
+        if (ex is InteractionException iex && iex.InnerException is HttpException innerHttpEx)
+        {
+            return innerHttpEx.DiscordCode.HasValue
+                && (int)innerHttpEx.DiscordCode.Value is 40060 or 10062;
+        }
+
+        return false;
     }
 }
 

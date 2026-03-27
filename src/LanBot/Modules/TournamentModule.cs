@@ -353,7 +353,7 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
     [SlashCommand("status", "Vis status for en turnering")]
     public async Task StatusAsync(
         [Summary(description: "Navn på turneringen")]
-        [Autocomplete(typeof(TournamentAutocompleteHandler))]
+        [Autocomplete(typeof(TournamentAnyStatusAutocompleteHandler))]
         string navn)
     {
         if (!await TryDeferEphemeralAsync())

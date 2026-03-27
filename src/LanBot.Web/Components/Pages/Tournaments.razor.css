@@ -49,6 +49,29 @@
     color: #94a3b8;
 }
 
+.card-text {
+    color: #d8e2ef;
+}
+
+.status-line {
+    color: #d7f5ff;
+    font-size: 0.95rem;
+}
+
+.status-line strong {
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.format-line {
+    color: #f1f5f9;
+}
+
+.format-line strong {
+    color: #e2ff56;
+    font-weight: 700;
+}
+
 .tournament-card {
     height: 100%;
     transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;

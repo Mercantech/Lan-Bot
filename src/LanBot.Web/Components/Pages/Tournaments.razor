@@ -39,8 +39,8 @@ else
                             <h5 class="card-title">@t.Name</h5>
                             <span class="status status-@t.Status.ToString().ToLowerInvariant()">@t.Status</span>
                         </div>
-                        <p class="card-text mb-2 muted">@t.Progression • @(t.IsTeamBased ? "Team" : "Solo")</p>
-                        <p class="card-text mb-1"><strong>Format:</strong> @t.PlayersPerMatch pr. match, top @t.AdvanceCount videre</p>
+                        <p class="card-text mb-2 status-line">Status: <strong>@t.Status</strong> • @t.Progression • @(t.IsTeamBased ? "Team" : "Solo")</p>
+                        <p class="card-text mb-1 format-line"><strong>Format:</strong> @t.PlayersPerMatch pr. match, top @t.AdvanceCount videre</p>
                         <p class="card-text mb-3"><strong>Tilmeldte:</strong> @t.EntryCount</p>
                         <a class="btn btn-primary" href="@($"/tournaments/{t.Id}")">Åbn bracket</a>
                     </div>

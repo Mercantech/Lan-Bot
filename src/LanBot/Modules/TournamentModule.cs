@@ -61,29 +61,29 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         draft.IsTeamBased = type == TournamentType.Team;
     }
 
-    [ComponentInteraction("tcf_prog_bracket")]
+    [ComponentInteraction("tcf_prog_bracket", ignoreGroupNames: true)]
     public Task SetProgressionBracketAsync() => UpdateDraftAsync(d => d.Progression = TournamentProgression.Bracket);
 
-    [ComponentInteraction("tcf_prog_single")]
+    [ComponentInteraction("tcf_prog_single", ignoreGroupNames: true)]
     public Task SetProgressionSingleAsync() => UpdateDraftAsync(d =>
     {
         d.Progression = TournamentProgression.SingleMatch;
         d.AdvanceCount = 1;
     });
 
-    [ComponentInteraction("tcf_type_solo")]
+    [ComponentInteraction("tcf_type_solo", ignoreGroupNames: true)]
     public Task SetTypeSoloAsync() => UpdateDraftAsync(d => d.IsTeamBased = false);
 
-    [ComponentInteraction("tcf_type_team")]
+    [ComponentInteraction("tcf_type_team", ignoreGroupNames: true)]
     public Task SetTypeTeamAsync() => UpdateDraftAsync(d => d.IsTeamBased = true);
 
-    [ComponentInteraction("tcf_rand_on")]
+    [ComponentInteraction("tcf_rand_on", ignoreGroupNames: true)]
     public Task SetRandomOnAsync() => UpdateDraftAsync(d => d.RandomizeSeeds = true);
 
-    [ComponentInteraction("tcf_rand_off")]
+    [ComponentInteraction("tcf_rand_off", ignoreGroupNames: true)]
     public Task SetRandomOffAsync() => UpdateDraftAsync(d => d.RandomizeSeeds = false);
 
-    [ComponentInteraction("tcf_ppm")]
+    [ComponentInteraction("tcf_ppm", ignoreGroupNames: true)]
     public Task SetPlayersPerMatchAsync()
     {
         return UpdateDraftAsync(d =>
@@ -101,7 +101,7 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         });
     }
 
-    [ComponentInteraction("tcf_adv")]
+    [ComponentInteraction("tcf_adv", ignoreGroupNames: true)]
     public Task SetAdvanceCountAsync()
     {
         return UpdateDraftAsync(d =>
@@ -121,7 +121,7 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         });
     }
 
-    [ComponentInteraction("tcf_cancel")]
+    [ComponentInteraction("tcf_cancel", ignoreGroupNames: true)]
     public async Task CancelCreateFlowAsync()
     {
         if (Context.Interaction is not SocketMessageComponent component)
@@ -143,7 +143,7 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         }
     }
 
-    [ComponentInteraction("tcf_confirm")]
+    [ComponentInteraction("tcf_confirm", ignoreGroupNames: true)]
     public async Task ConfirmCreateFlowAsync()
     {
         if (Context.Interaction is not SocketMessageComponent component)

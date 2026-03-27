@@ -3,6 +3,7 @@ using LanBot.Domain.Entities;
 using LanBot.Discord;
 using Discord.WebSocket;
 using Discord;
+using Discord.Net;
 
 namespace LanBot;
 
@@ -37,7 +38,8 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         [Summary(description: "Navn på turneringen")] string navn,
         [Summary(description: "Solo eller hold")] TournamentType type = TournamentType.Solo)
     {
-        await DeferAsync(ephemeral: true);
+        if (!await TryDeferEphemeralAsync())
+            return;
         if (Context.User is not SocketGuildUser gu || !_admin.IsAdmin(gu))
         {
             await FollowupAsync("Du har ikke rettigheder til den kommando.", ephemeral: true);
@@ -294,7 +296,8 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         [Autocomplete(typeof(TournamentAnyStatusAutocompleteHandler))]
         string navn)
     {
-        await DeferAsync(ephemeral: true);
+        if (!await TryDeferEphemeralAsync())
+            return;
         if (Context.User is not SocketGuildUser gu || !_admin.IsAdmin(gu))
         {
             await FollowupAsync("Du har ikke rettigheder til den kommando.", ephemeral: true);
@@ -311,7 +314,8 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         [Autocomplete(typeof(TournamentAnyStatusAutocompleteHandler))]
         string navn)
     {
-        await DeferAsync(ephemeral: true);
+        if (!await TryDeferEphemeralAsync())
+            return;
         if (Context.User is not SocketGuildUser gu || !_admin.IsAdmin(gu))
         {
             await FollowupAsync("Du har ikke rettigheder til den kommando.", ephemeral: true);
@@ -328,7 +332,8 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         [Autocomplete(typeof(TournamentAutocompleteHandler))]
         string navn)
     {
-        await DeferAsync(ephemeral: true);
+        if (!await TryDeferEphemeralAsync())
+            return;
         var (ok, message) = await _tournaments.EnrollMeAsync(navn, Context.User.Id);
         await FollowupAsync(message, ephemeral: true);
     }
@@ -339,7 +344,8 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         [Autocomplete(typeof(TournamentAutocompleteHandler))]
         string navn)
     {
-        await DeferAsync(ephemeral: true);
+        if (!await TryDeferEphemeralAsync())
+            return;
         var (ok, message) = await _tournaments.LeaveMeAsync(navn, Context.User.Id);
         await FollowupAsync(message, ephemeral: true);
     }
@@ -350,7 +356,8 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         [Autocomplete(typeof(TournamentAutocompleteHandler))]
         string navn)
     {
-        await DeferAsync(ephemeral: true);
+        if (!await TryDeferEphemeralAsync())
+            return;
         var (ok, message) = await _tournaments.GetStatusLineAsync(navn);
         var enrollment = await _tournaments.GetEnrollmentOverviewAsync(navn);
         var (tournament, roundNumber, matches) = await _tournaments.GetLatestRoundSnapshotAsync(navn);
@@ -413,7 +420,8 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         [Autocomplete(typeof(TournamentAnyStatusAutocompleteHandler))]
         string navn)
     {
-        await DeferAsync(ephemeral: true);
+        if (!await TryDeferEphemeralAsync())
+            return;
         if (Context.User is not SocketGuildUser gu || !_admin.IsAdmin(gu))
         {
             await FollowupAsync("Du har ikke rettigheder til den kommando.", ephemeral: true);
@@ -430,10 +438,27 @@ public sealed class TournamentModule : InteractionModuleBase<SocketInteractionCo
         [Autocomplete(typeof(TournamentAnyStatusAutocompleteHandler))]
         string navn)
     {
-        await DeferAsync(ephemeral: true);
+        if (!await TryDeferEphemeralAsync())
+            return;
         var line = await _tournaments.GetWinnerLineAsync(navn);
         await FollowupAsync(line ?? "Jeg kan ikke finde en turnering med det navn.", ephemeral: true);
     }
+
+    private async Task<bool> TryDeferEphemeralAsync()
+    {
+        try
+        {
+            await DeferAsync(ephemeral: true);
+            return true;
+        }
+        catch (HttpException ex) when (IsAlreadyAcknowledgedOrExpired(ex))
+        {
+            return false;
+        }
+    }
+
+    private static bool IsAlreadyAcknowledgedOrExpired(HttpException ex) =>
+        ex.DiscordCode.HasValue && (int)ex.DiscordCode.Value is 40060 or 10062;
 }
 
 public enum TournamentType

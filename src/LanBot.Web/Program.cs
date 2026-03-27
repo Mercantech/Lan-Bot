@@ -89,6 +89,12 @@ if (discordAuthEnabled)
         options.CallbackPath = "/signin-discord";
         options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 
+        // Under OAuth skal correlation-cookie kunne sendes tilbage fra Discord (cross-site redirect).
+        // Uden dette kan callback fejle med "oauth state was missing or invalid".
+        options.CorrelationCookie.Path = "/";
+        options.CorrelationCookie.SameSite = SameSiteMode.None;
+        options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+
         options.AuthorizationEndpoint = "https://discord.com/oauth2/authorize";
         options.TokenEndpoint = "https://discord.com/api/oauth2/token";
         options.UserInformationEndpoint = "https://discord.com/api/users/@me";
@@ -169,20 +175,53 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
-    // Behind reverse proxies in container setups, trust forwarded headers explicitly.
-    KnownIPNetworks = { },
-    KnownProxies = { }
+    // Vigtigt bag reverse proxy: lad forwarding headers slå igennem, så `Request.Scheme`/`Host`
+    // matcher den eksterne URL.
 });
 app.Use((context, next) =>
 {
-    if (publicBaseUri is not null
-        && (context.Request.Path.StartsWithSegments("/login")
-            || context.Request.Path.StartsWithSegments("/signin-discord")))
+    // Når vi kører bag en reverse proxy (fx Cloudflare), kan `Request.Scheme`/`Host`
+    // ellers ende med at være `http`/intern host. Det kan ødelægge OAuth/cookie-flowet.
+    // Derfor normaliserer vi til `PUBLIC_BASE_URL`, hvis den er sat, ellers bruger vi
+    // `X-Forwarded-Proto` hvis muligt.
+    if (publicBaseUri is not null)
     {
         context.Request.Scheme = publicBaseUri.Scheme;
         context.Request.Host = publicBaseUri.IsDefaultPort
             ? new HostString(publicBaseUri.Host)
             : new HostString(publicBaseUri.Host, publicBaseUri.Port);
+    }
+    else
+    {
+        var forwardedProto = context.Request.Headers["X-Forwarded-Proto"].ToString();
+        if (!string.IsNullOrWhiteSpace(forwardedProto))
+        {
+            // Antag `https` når proxy siger det. Det hjælper bl.a. med at få korrekt
+            // callback/cookie behaviour.
+            context.Request.Scheme = forwardedProto;
+        }
+        else
+        {
+            // Cloudflare sender typisk scheme i CF-Visitor, selv hvis X-Forwarded-Proto ikke er sat mod origin.
+            var cfVisitor = context.Request.Headers["CF-Visitor"].ToString();
+            if (!string.IsNullOrWhiteSpace(cfVisitor))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(cfVisitor);
+                    if (doc.RootElement.TryGetProperty("scheme", out var s))
+                    {
+                        var sch = s.GetString();
+                        if (!string.IsNullOrWhiteSpace(sch))
+                            context.Request.Scheme = sch;
+                    }
+                }
+                catch
+                {
+                    // ignore malformed header
+                }
+            }
+        }
     }
 
     return next();

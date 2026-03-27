@@ -54,6 +54,16 @@ public sealed class InteractionHandler
         {
             var ctx = new SocketInteractionContext(_client, interaction);
             await _interactions.ExecuteCommandAsync(ctx, _services);
+
+            // Hvis der ikke blev sendt et svar (fx handler/route ikke er registreret endnu),
+            // så skal vi stadig ack'e for at undgå "This interaction failed" i Discord.
+            if (!interaction.HasResponded)
+            {
+                if (interaction is SocketMessageComponent component)
+                    await component.RespondAsync("Der skete en fejl. Prøv igen.", ephemeral: true);
+                else
+                    await interaction.RespondAsync("Der skete en fejl. Prøv igen.", ephemeral: true);
+            }
         }
         catch (Exception ex)
         {
